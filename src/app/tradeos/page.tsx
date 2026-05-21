@@ -32,6 +32,7 @@ interface Trade {
   grade: string; setup: string; emotion: string; lesson: string;
   confidence: number; exitType: string; mistakes: string[];
   sl: number; target: number; rr: string;
+  journaled?: boolean;
 }
 
 interface Fund {
