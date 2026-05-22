@@ -74,7 +74,7 @@ export default function Home() {
           }}>
 
             {/* TradeOS */}
-            <a href="/tradeos"
+            <a href="/tradeos" target="_blank" rel="noopener noreferrer"
               className="product-card product-card--trade"
               style={{ textDecoration: "none", color: "inherit", display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
