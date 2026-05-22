@@ -86,9 +86,32 @@ export default function TradeOS() {
   const saveTrades = useCallback((t: Trade[]) => {
     setTrades(t);
     try { localStorage.setItem("nt_trades", JSON.stringify(t)); } catch {}
-  }, []);
+    // Persist to Supabase (fire-and-forget, doesn't block UI)
+    if (sb && user) {
+      (async () => {
+        try {
+          const rows = t.map(trade => ({
+            id: trade.id,
+            user_id: user.id,
+            trade_symbol: trade.symbol,
+            trade_date: trade.date,
+            setup: trade.setup || null,
+            outcome: trade.pnl >= 0 ? "win" : "loss",
+            emotion: trade.emotion || null,
+            confidence: trade.confidence || null,
+            exit_type: trade.exitType || null,
+            grade: trade.grade || null,
+            lesson: trade.lesson || null,
+            mistakes: trade.mistakes && trade.mistakes.length ? trade.mistakes : null,
+            updated_at: new Date().toISOString(),
+          }));
+          if (rows.length) await sb.from("journals").upsert(rows, { onConflict: "id" });
+        } catch (e) { console.error("[TradeOS] DB save failed:", e); }
+      })();
+    }
+  }, [sb, user]);
 
-  // Load cached trades on mount
+  // Load cached trades on mount (localStorage first for speed)
   useEffect(() => {
     try {
       const cached = localStorage.getItem("nt_trades");
@@ -97,6 +120,62 @@ export default function TradeOS() {
       if (cachedFund) setFund(JSON.parse(cachedFund));
     } catch {}
   }, []);
+
+  // Pull trades from Supabase database after login (source of truth)
+  useEffect(() => {
+    if (!sb || !user) return;
+    (async () => {
+      try {
+        const { data, error } = await sb
+          .from("journals")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("trade_date", { ascending: false });
+        if (error) { console.error("[TradeOS] Load journals failed:", error); return; }
+        if (!data || data.length === 0) return;
+        // Convert DB rows back to Trade shape, merging with any existing local trades
+        const dbTrades: Trade[] = data.map((row: Record<string, unknown>) => {
+          const existing = trades.find(t => t.id === row.id);
+          return existing ? {
+            ...existing,
+            setup: (row.setup as string) || existing.setup,
+            emotion: (row.emotion as string) || existing.emotion,
+            lesson: (row.lesson as string) || existing.lesson,
+            grade: (row.grade as string) || existing.grade,
+            exitType: (row.exit_type as string) || existing.exitType,
+            confidence: (row.confidence as number) || existing.confidence,
+            mistakes: (row.mistakes as string[]) || existing.mistakes,
+          } : {
+            id: row.id as string,
+            symbol: (row.trade_symbol as string) || "",
+            date: (row.trade_date as string) || "",
+            time: "",
+            type: "" as Trade["type"],
+            side: "long" as Trade["side"],
+            qty: 0, entry: 0, exit: 0, pnl: 0, pnlPct: 0,
+            status: "closed" as Trade["status"],
+            setup: (row.setup as string) || "",
+            emotion: (row.emotion as string) || "",
+            lesson: (row.lesson as string) || "",
+            grade: (row.grade as string) || "",
+            exitType: (row.exit_type as string) || "",
+            confidence: (row.confidence as number) || 5,
+            mistakes: (row.mistakes as string[]) || [],
+            sl: 0, target: 0, rr: 0,
+          };
+        });
+        // Merge: keep any local trades that aren't in DB yet (e.g. fresh Dhan sync not yet saved)
+        const dbIds = new Set(dbTrades.map(t => t.id));
+        const localOnly = trades.filter(t => !dbIds.has(t.id));
+        const merged = [...dbTrades, ...localOnly];
+        if (merged.length) {
+          setTrades(merged);
+          try { localStorage.setItem("nt_trades", JSON.stringify(merged)); } catch {}
+        }
+      } catch (e) { console.error("[TradeOS] Load journals exception:", e); }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sb, user]);
 
   // Auth state
   useEffect(() => {
@@ -362,7 +441,7 @@ export default function TradeOS() {
 
   if (authState === "connect-broker") return (
     <div style={{ background: C.bg, minHeight: "100vh", color: C.tp, fontFamily: "system-ui,sans-serif", padding: "40px 20px" }}>
-      <div style={{ maxWidth: 480, margin: "0 auto" }}>
+      <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔗</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Connect Your Dhan Account</div>
@@ -413,7 +492,7 @@ export default function TradeOS() {
   // MAIN APP
   // ══════════════════════════════════════════════════════════════════════════
   return (
-    <div style={{ background: C.bg, color: C.tp, fontFamily: "system-ui,-apple-system,sans-serif", maxWidth: 480, margin: "0 auto", minHeight: "100vh" }}>
+    <div style={{ background: C.bg, color: C.tp, fontFamily: "system-ui,-apple-system,sans-serif", maxWidth: 720, margin: "0 auto", minHeight: "100vh" }}>
       <style>{`
         input[type=range]{-webkit-appearance:none;height:4px;border-radius:2px;background:rgba(255,255,255,0.08);outline:none;width:100%;cursor:pointer;}
         input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:9px;cursor:pointer;}
@@ -875,7 +954,7 @@ export default function TradeOS() {
       )}
 
       {/* Bottom Nav */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "rgba(11,14,26,0.97)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.brd2}`, display: "flex", zIndex: 100, padding: "10px 0 16px" }}>
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 720, background: "rgba(11,14,26,0.97)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.brd2}`, display: "flex", zIndex: 100, padding: "10px 0 16px" }}>
         {[["dashboard", "⬡", "Home"], ["trades", "≡", "Trades"], ["analytics", "◈", "Analytics"], ["report", "◉", "Report"], ["settings", "⚙", "Settings"]].map(([id, ic, lb]) => (
           <button key={id} onClick={() => setScr(id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: scr === id ? C.purL : C.ts, padding: "4px 2px", fontSize: 8, fontFamily: "inherit", fontWeight: 600 }}>
             <span style={{ fontSize: 18 }}>{ic}</span>{lb}
