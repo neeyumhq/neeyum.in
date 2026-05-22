@@ -31,23 +31,29 @@ export default function Navbar() {
   return (
     <>
       <nav id="navbar" style={{ boxShadow: scrolled ? "0 4px 48px rgba(0,0,0,0.5)" : "none" }}>
-        {/* Logo — Neeyum only */}
+        {/* Logo — page-aware branding */}
         <div className="nav-logo">
           <Link href="/" onClick={() => setMobileOpen(false)}
-            style={{ textDecoration: "none", color: "inherit", fontWeight: 800, letterSpacing: "-0.5px" }}>
-            Neeyum
+            style={{ textDecoration: "none", color: "inherit", fontWeight: 800, letterSpacing: "-0.5px", display: "inline-flex", alignItems: "baseline", gap: "8px" }}>
+            <span>Neeyum</span>
+            {pathname === "/tradeos" && (
+              <span style={{ color: "var(--green)", fontWeight: 700, fontSize: "0.75em", letterSpacing: "0.02em" }}>TradeOS</span>
+            )}
+            {pathname === "/scorecard" && (
+              <span style={{ color: "var(--gold)", fontWeight: 700, fontSize: "0.75em", letterSpacing: "0.02em" }}>Scorecard</span>
+            )}
           </Link>
         </div>
 
-        {/* Desktop — 3 colored nav items */}
-        <div className="nav-links">
+        {/* Desktop — 3 colored nav items (hidden on /tradeos) */}
+        {pathname === "/" && <div className="nav-links">
           <a href="/#page-home" onClick={scrollToLab}
             style={{ color: "var(--purple2)", fontWeight: 600, fontSize: "14px",
               padding: "8px 16px", borderRadius: "10px", border: "1px solid rgba(124,92,252,0.25)",
               background: "rgba(124,92,252,0.08)", textDecoration: "none", transition: "all 0.2s" }}>
             Neeyum Lab
           </a>
-          <a href="/tradeos"
+          <a href="/tradeos" target="_blank" rel="noopener noreferrer"
             style={{ color: "var(--green)", fontWeight: 700, fontSize: "14px",
               padding: "8px 16px", borderRadius: "10px", border: "1px solid rgba(0,229,160,0.25)",
               background: "rgba(0,229,160,0.08)", textDecoration: "none", transition: "all 0.2s" }}>
@@ -59,26 +65,26 @@ export default function Navbar() {
               background: "rgba(245,200,66,0.08)", textDecoration: "none", transition: "all 0.2s" }}>
             Scorecard
           </Link>
-        </div>
+        </div>}
 
-        {/* Mobile hamburger */}
-        <button className="hamburger-btn" onClick={() => setMobileOpen(!mobileOpen)}
+        {/* Mobile hamburger (hidden on /tradeos) */}
+        {pathname === "/" && <button className="hamburger-btn" onClick={() => setMobileOpen(!mobileOpen)}
           aria-label="Toggle menu">
           <div className="hamburger">
             <div className="hline"></div>
             <div className="hline"></div>
             <div className="hline"></div>
           </div>
-        </button>
+        </button>}
       </nav>
 
       {/* Mobile dropdown */}
-      <div className={`mobile-nav ${mobileOpen ? "open" : ""}`}>
+      {pathname === "/" && <div className={`mobile-nav ${mobileOpen ? "open" : ""}`}>
         <a href="/#page-home" onClick={scrollToLab}
           style={{ color: "var(--purple2)", fontWeight: 600 }}>
           Neeyum Lab
         </a>
-        <a href="/tradeos"
+        <a href="/tradeos" target="_blank" rel="noopener noreferrer"
           onClick={() => setMobileOpen(false)}
           style={{ color: "var(--green)", fontWeight: 700 }}>
           TradeOS
@@ -92,7 +98,7 @@ export default function Navbar() {
           className="btn-primary" style={{ textAlign: "center", marginTop: "8px" }}>
           &#128242; Download Neeyum App
         </a>
-      </div>
+      </div>}
     </>
   );
 }
