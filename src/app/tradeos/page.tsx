@@ -494,13 +494,24 @@ export default function TradeOS() {
   // MAIN APP
   // ══════════════════════════════════════════════════════════════════════════
   return (
-    <div style={{ background: C.bg, color: C.tp, fontFamily: "system-ui,-apple-system,sans-serif", maxWidth: 720, margin: "0 auto", minHeight: "100vh" }}>
+    <div className="tradeos-shell" style={{ background: C.bg, color: C.tp, fontFamily: "system-ui,-apple-system,sans-serif", margin: "0 auto", minHeight: "100vh" }}>
       <style>{`
         input[type=range]{-webkit-appearance:none;height:4px;border-radius:2px;background:rgba(255,255,255,0.08);outline:none;width:100%;cursor:pointer;}
         input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:9px;cursor:pointer;}
         ::-webkit-scrollbar{display:none;}
         @keyframes spin{to{transform:rotate(360deg);}}
         textarea{font-family:inherit;}
+        /* Responsive: mobile-first, expand on larger screens */
+        .tradeos-shell { max-width: 480px; }
+        .tradeos-bottomnav { max-width: 480px; }
+        @media (min-width: 768px) {
+          .tradeos-shell { max-width: 720px; }
+          .tradeos-bottomnav { max-width: 720px; }
+        }
+        @media (min-width: 1100px) {
+          .tradeos-shell { max-width: 960px; }
+          .tradeos-bottomnav { max-width: 960px; }
+        }
       `}</style>
 
       {/* Top bar */}
@@ -956,7 +967,7 @@ export default function TradeOS() {
       )}
 
       {/* Bottom Nav */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 720, background: "rgba(11,14,26,0.97)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.brd2}`, display: "flex", zIndex: 100, padding: "10px 0 16px" }}>
+      <div className="tradeos-bottomnav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", background: "rgba(11,14,26,0.97)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.brd2}`, display: "flex", zIndex: 100, padding: "10px 0 16px" }}>
         {[["dashboard", "⬡", "Home"], ["trades", "≡", "Trades"], ["analytics", "◈", "Analytics"], ["report", "◉", "Report"], ["settings", "⚙", "Settings"]].map(([id, ic, lb]) => (
           <button key={id} onClick={() => setScr(id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: scr === id ? C.purL : C.ts, padding: "4px 2px", fontSize: 8, fontFamily: "inherit", fontWeight: 600 }}>
             <span style={{ fontSize: 18 }}>{ic}</span>{lb}
