@@ -169,6 +169,11 @@ export async function GET(request: NextRequest) {
         const pnlPct = entry > 0 && exit > 0
           ? parseFloat((((exit - entry) / entry) * 100 * (firstWasBuy ? 1 : -1)).toFixed(2))
           : 0;
+        // R:R as R-multiple: % move relative to assumed 1% risk
+        // e.g. +3% gain on a 1% risk trade = 3R = "3.00" R:R
+        // Negative = loss expressed as fraction of R
+        const rrNum = pnlPct !== 0 ? parseFloat(Math.abs(pnlPct).toFixed(2)) : 0;
+        const rr = rrNum > 0 ? (totalPnl >= 0 ? `${rrNum}R` : `-${rrNum}R`) : "";
 
         result.push({
           id: `${sym}_${prod}_${firstTrade?.orderId || today}`,
@@ -191,7 +196,8 @@ export async function GET(request: NextRequest) {
           holdDisplay: fmtHold(holdMins),
           time: firstTime ? firstTime.toTimeString().slice(0, 5) : '',
           side: firstWasBuy ? 'long' : 'short',
-          rr: 0, sl: 0, target: 0, grade: '', setup: '', emotion: '', lesson: '', confidence: 5, exitType: '',
+          rr,
+          sl: 0, target: 0, grade: '', setup: '', emotion: '', lesson: '', confidence: 5, exitType: '',
           mistakes: [],
         });
       });
