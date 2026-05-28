@@ -1,0 +1,32 @@
+{
+  "name": "Neeyum Journal",
+  "short_name": "Neeyum Journal",
+  "description": "The world's most disciplined multi-asset trading journal. Track F&O, equity, US stocks, crypto & forex. Ranked by behaviour, not luck.",
+  "start_url": "/journal",
+  "scope": "/journal",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#050610",
+  "theme_color": "#7c5cfc",
+  "categories": ["finance", "productivity", "business"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

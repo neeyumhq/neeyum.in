@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/yf-chart/:symbol",
+      "destination": "https://query1.finance.yahoo.com/v8/finance/chart/:symbol"
+    },
+    {
+      "source": "/api/yf-quote/:symbol",
+      "destination": "https://query2.finance.yahoo.com/v10/finance/quoteSummary/:symbol"
+    },
+    {
+      "source": "/scorecard",
+      "destination": "/scorecard.html"
+    }
+  ]
+}
