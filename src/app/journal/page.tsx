@@ -3,8 +3,8 @@ export const dynamic = "force-dynamic";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient, SupabaseClient, User } from "@supabase/supabase-js";
 import {
-  Trade, AssetClass, ASSET_CLASSES, assetCfg, SETUPS, EMOTIONS, MISTAKES, GRADES, COUNTRIES,
-  computePnl, computePnlPct, computeRR, fmtMoney, fmtMoneyFull, behaviourScore,
+  Trade, AssetClass, ASSET_CLASSES, assetCfg, SETUPS, EMOTIONS, MISTAKES, COUNTRIES,
+  computePnl, computePnlPct, computeRR, fmtMoney, fmtMoneyFull, behaviourScore, autoGrade,
 } from "@/lib/journal";
 
 // ── Supabase (safe lazy init) ───────────────────────────────────────────────
@@ -131,7 +131,18 @@ export default function NeeyumJournal() {
     (async () => {
       try {
         const { data } = await sb.from("nj_trades").select("*").eq("user_id", user.id).order("trade_date", { ascending: false });
-        if (data) setTrades(data.map(rowToTrade));
+        if (data && data.length > 0) {
+          setTrades(data.map(rowToTrade));
+        } else {
+          // DB empty — try localStorage backup so user doesn't lose unsaved trades
+          try {
+            const backup = localStorage.getItem("nj_trades_backup");
+            if (backup) {
+              const parsed = JSON.parse(backup) as Trade[];
+              if (Array.isArray(parsed) && parsed.length > 0) setTrades(parsed);
+            }
+          } catch {}
+        }
         const { data: prof } = await sb.from("nj_profiles").select("display_name,username,country,avatar_url,primary_asset,public_profile,onboarded,plan").eq("id", user.id).single();
         if (prof) {
           const pr = prof as Profile;
@@ -145,19 +156,33 @@ export default function NeeyumJournal() {
     })();
   }, [sb, user]);
 
+  const [saveError, setSaveError] = useState<string>("");
+
   const saveTrade = useCallback(async (t: Trade) => {
     setTrades(prev => {
       const exists = prev.find(x => x.id === t.id);
-      return exists ? prev.map(x => x.id === t.id ? t : x) : [t, ...prev];
+      const next = exists ? prev.map(x => x.id === t.id ? t : x) : [t, ...prev];
+      try { localStorage.setItem("nj_trades_backup", JSON.stringify(next)); } catch {}
+      return next;
     });
     if (sb && user) {
       const { error } = await sb.from("nj_trades").upsert(tradeToRow(t, user.id), { onConflict: "id" });
-      if (error) console.error("[NJ] save:", error);
+      if (error) {
+        console.error("[NJ] save error:", error);
+        setSaveError(`Database save failed: ${error.message}. Trade kept locally — please re-run the SQL schema in Supabase.`);
+        setTimeout(() => setSaveError(""), 8000);
+      } else {
+        setSaveError("");
+      }
     }
   }, [sb, user]);
 
   const removeTrade = useCallback(async (id: string) => {
-    setTrades(prev => prev.filter(t => t.id !== id));
+    setTrades(prev => {
+      const next = prev.filter(t => t.id !== id);
+      try { localStorage.setItem("nj_trades_backup", JSON.stringify(next)); } catch {}
+      return next;
+    });
     if (sb && user) await sb.from("nj_trades").delete().eq("id", id).eq("user_id", user.id);
   }, [sb, user]);
 
@@ -214,6 +239,14 @@ export default function NeeyumJournal() {
       `}</style>
 
       <TopBar {...{ C, user, scr, setScr, avatarUrl: profile?.avatar_url }} />
+
+      {saveError && (
+        <div className="nj-shell" style={{ padding: "10px 14px 0" }}>
+          <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 10, padding: "10px 14px", color: C.redL, fontSize: 12, lineHeight: 1.5 }}>
+            ⚠ {saveError}
+          </div>
+        </div>
+      )}
 
       <div className="nj-shell" style={{ padding: "16px 14px 100px" }}>
         {scr === "dashboard" && <Dashboard {...{ C, trades: fTrades, closed, assetFilter, setAssetFilter, setShowAdd, setEditTrade, profile }} />}
@@ -516,7 +549,6 @@ function TradeModal(p: { C: Record<string, string>; onClose: () => void; onSave:
   const [emotion, setEmotion] = useState(e?.emotion_entry || "");
   const [mistakes, setMistakes] = useState<string[]>(e?.mistakes || []);
   const [followedPlan, setFollowedPlan] = useState<boolean | undefined>(e?.followed_plan);
-  const [grade, setGrade] = useState(e?.grade || "");
   const [lesson, setLesson] = useState(e?.lesson || "");
   const [isClosed, setIsClosed] = useState<boolean>(e ? (e.is_closed ?? true) : true);
   const [err, setErr] = useState("");
@@ -525,6 +557,19 @@ function TradeModal(p: { C: Record<string, string>; onClose: () => void; onSave:
   const pnl = isClosed ? computePnl(side, en, ex, q) : 0;
   const pnlPct = isClosed ? computePnlPct(side, en, ex) : 0;
   const rr = isClosed ? computeRR(side, en, ex, sln || undefined) : undefined;
+
+  // System-computed grade, live
+  const autoGradeVal = isClosed ? autoGrade({
+    pnl, rr, is_closed: isClosed, followed_plan: followedPlan,
+    setup, emotion_entry: emotion, lesson, mistakes,
+    confidence: parseFloat(confidence) || undefined, thesis,
+  }) : "";
+  const autoGradeColor =
+    autoGradeVal === "A+" ? C.grn :
+    autoGradeVal === "A"  ? C.grn :
+    autoGradeVal === "B"  ? C.blu :
+    autoGradeVal === "C"  ? C.amb :
+    autoGradeVal === "D"  ? C.red : "";
 
   const save = () => {
     if (!symbol.trim()) return setErr("Enter symbol");
@@ -544,10 +589,11 @@ function TradeModal(p: { C: Record<string, string>; onClose: () => void; onSave:
       pnl, pnl_pct: pnlPct, rr: rr ?? undefined, currency: cfg.currency, is_closed: isClosed,
       setup: setup || undefined, emotion_entry: emotion || undefined,
       confidence: parseFloat(confidence) || undefined, followed_plan: followedPlan,
-      grade: grade || undefined, mistakes, lesson: lesson || undefined, thesis: thesis || undefined,
+      grade: autoGradeVal || undefined, mistakes, lesson: lesson || undefined, thesis: thesis || undefined,
     };
     p.onSave(t);
   };
+
 
   return (
     <div onClick={p.onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0" }}>
@@ -663,7 +709,7 @@ function TradeModal(p: { C: Record<string, string>; onClose: () => void; onSave:
         <Label C={C}>Mistakes (if any)</Label>
         <ChipRow C={C} options={MISTAKES} multi value={mistakes} onToggle={m => setMistakes(mistakes.includes(m) ? mistakes.filter(x => x !== m) : [...mistakes, m])} style={{ marginBottom: 14 }} />
 
-        {/* Plan + grade */}
+        {/* Plan + Auto-Grade */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
           <div><Label C={C}>Followed Plan?</Label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -671,10 +717,16 @@ function TradeModal(p: { C: Record<string, string>; onClose: () => void; onSave:
               <button onClick={() => setFollowedPlan(false)} style={sideBtn(C, followedPlan === false, "short")}>✗ No</button>
             </div>
           </div>
-          <div><Label C={C}>Grade</Label>
-            <div style={{ display: "flex", gap: 4 }}>
-              {GRADES.map(g => <button key={g} onClick={() => setGrade(grade === g ? "" : g)} style={{ flex: 1, padding: 9, background: grade === g ? "rgba(124,92,252,0.18)" : "rgba(255,255,255,0.03)", border: `1px solid ${grade === g ? C.pur : C.brd2}`, color: grade === g ? C.purL : C.tm, borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{g}</button>)}
-            </div>
+          <div><Label C={C}>Auto Grade</Label>
+            {(() => {
+              const gradeColor = autoGradeColor || C.tm;
+              return (
+                <div style={{ padding: "10px 14px", background: `${gradeColor}1a`, border: `1px solid ${gradeColor}66`, borderRadius: 8, fontSize: 22, fontWeight: 800, color: gradeColor, textAlign: "center" as const, fontFamily: "inherit" }}>
+                  {autoGradeVal || "—"}
+                  <span style={{ fontSize: 9, color: C.ts, fontWeight: 500, display: "block", letterSpacing: "0.05em", marginTop: 2 }}>{isClosed ? "system-rated" : "close trade for grade"}</span>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
